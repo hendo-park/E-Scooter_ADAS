@@ -1,6 +1,6 @@
 # Process of camera calibration
 
-##S tep 1. Extract parameter
+## Step 1. Extract parameter
 GML camera calibration tool을 사용하여 카메라 렌즈 왜곡 보정 계수를 구한다.
 툴을 이용하기 위해 정해진 흑백 격자무늬 패턴을 사용해야 하는데, 같은 폴더 참조 바람.
 패턴을 출력해 여러 각도, 거리에서 사진을 촬영한다.
