@@ -6,7 +6,9 @@ X_LENGTH = 0.75
 Y_LENGTH = 1.5
 
 def get_angle(v1, v2):
-
+    dot = v1[0]*v2[0] + v1[1]*v2[1]
+    size = sqrt(v1[0]**2 + v1[1]**2) * sqrt(v2[0]**2 + v2[1]**2)
+    angle = acos(dot/size)
     return angle
 
 def impact(pnt, vec):
@@ -41,7 +43,7 @@ def impact(pnt, vec):
                     direction = 'RIGHT IMPACT'
                     point_x = -point_x
                     vec_x = -vec_x
-                std_vec = (0, -1)
+                std_vec = (0, 1)
                 max_vec = (-X_LENGTH - point_x, Y_LENGTH - point_y)
                 min_vec = (-X_LENGTH - point_x, -point_y)
                 max_angle = get_angle(max_vec, std_vec)
