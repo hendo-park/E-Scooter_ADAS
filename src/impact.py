@@ -29,7 +29,7 @@ def impact(pnt, vec):
             min_vec = (X_LENGTH - point_x, Y_LENGTH - point_y)
             max_angle = get_angle(max_vec, std_vec)
             min_angle = get_angle(min_vec, std_vec)
-            target_angle = get_angle(vec, std_vec)
+            target_angle = get_angle((vec_x, vec_y), std_vec)
             if min_angle <= target_angle <= max_angle:
                 impact_time = (Y_LENGTH - point_y) / vec_y # y 기준 충돌시간
                 return 'MIDDLE IMPACT', impact_time
@@ -44,11 +44,11 @@ def impact(pnt, vec):
                     point_x = -point_x
                     vec_x = -vec_x
                 std_vec = (0, 1)
-                max_vec = (-X_LENGTH - point_x, Y_LENGTH - point_y)
-                min_vec = (-X_LENGTH - point_x, -point_y)
+                max_vec = (-X_LENGTH - point_x, -point_y)
+                min_vec = (-X_LENGTH - point_x, Y_LENGTH - point_y)
                 max_angle = get_angle(max_vec, std_vec)
                 min_angle = get_angle(min_vec, std_vec)
-                target_angle = get_angle(vec, std_vec)
+                target_angle = get_angle((vec_x, vec_y), std_vec)
                 if min_angle <= target_angle <= max_angle:
                     impact_time = (-X_LENGTH - point_x) / vec_x
                     return direction, impact_time
@@ -61,13 +61,13 @@ def impact(pnt, vec):
                     vec_x = -vec_x
                 # 내적을 통한 각도 계산
                 std_vec = (1,0)
-                max_vec = (X_LENGTH - point_x, Y_LENGTH - point_y)
+                max_vec = (-X_LENGTH - point_x, -point_y)
                 mid_vec = (-X_LENGTH - point_x, Y_LENGTH - point_y)
-                min_vec = (-X_LENGTH - point_x, -point_y)
+                min_vec = (X_LENGTH - point_x, Y_LENGTH - point_y)
                 max_angle = get_angle(max_vec, std_vec)
                 mid_angle = get_angle(mid_vec, std_vec)
                 min_angle = get_angle(min_vec, std_vec)
-                target_angle = get_angle(vec, std_vec)
+                target_angle = get_angle((vec_x, vec_y), std_vec)
                 if min_angle <= target_angle <= mid_angle:
                     impact_time = (-X_LENGTH - point_x) / vec_x
                     return direction, impact_time
