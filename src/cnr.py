@@ -37,3 +37,4 @@ def determine_color(roi_color) :
         color = [color[0]+r, color[1]+g , color[2]+b]
     color = [color[0]//n , color[1]//n, color[2]//n]
     return color    
+
