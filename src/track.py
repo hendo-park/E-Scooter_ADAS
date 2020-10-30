@@ -7,8 +7,45 @@ import impact
 import datetime
 import copy
 import collections as col
-WINDOW_SIZE = 30  # (20fps 기준 약 1.5초)
-DISTANCE = 30
+import numpy as np
+WINDOW_SIZE = 10  # (20fps 기준 약 1.5초)
+
+
+def qr_householder(A):
+    m, n = A.shape
+    Q = np.eye(m)  # Orthogonal transform so far
+    R = A.copy()  # Transformed matrix so far
+
+    for j in range(n):
+        # Find H = I - beta*u*u' to put zeros below R[j,j]
+        x = R[j:, j]
+        normx = np.linalg.norm(x)
+        rho = -np.sign(x[0])
+        u1 = x[0] - rho * normx
+        u = x / u1
+        u[0] = 1
+        beta = -rho * u1 / normx
+
+        R[j:, :] = R[j:, :] - beta * np.outer(u, u).dot(R[j:, :])
+        Q[:, j:] = Q[:, j:] - beta * Q[:, j:].dot(np.outer(u, u))
+
+    return Q, R
+
+
+def new_sol(data):
+    m, n = data.shape
+    A = np.array([data[:, 0], np.ones(m)]).T
+    b = data[:, 1]
+
+    Q, R = qr_householder(A)
+    b_hat = Q.T.dot(b)
+
+    R_upper = R[:n, :]
+    b_upper = b_hat[:n]
+
+    x = np.linalg.solve(R_upper, b_upper)
+    slope, intercept = x
+    return slope, intercept
 
 
 class detect_object:
@@ -22,66 +59,52 @@ class detect_object:
         self.gridbox = value['gridbox']
         self.timer = time.time()  # 감지된 시간
         self.detect = True
-        self.path = col.deque(maxlen=WINDOW_SIZE)
-        self.path.append([self.point, self.timer])
+        self.path_x = col.deque(maxlen=WINDOW_SIZE)
+        self.path_y = col.deque(maxlen=WINDOW_SIZE)
+        self.path_t = col.deque(maxlen=WINDOW_SIZE)
+        self.path_x.append(self.point[0])
+        self.path_y.append(self.point[1])
+        self.path_t.append(self.timer)
         self.midpoint = [0, 0]
         self.vector = [0, 0]
         self.crush_level = 0  # 최고 레벨 3. 3일 경우 제동이 들어가야함
         self.crush_time = 999999
         self.crush_dir = 'Middle'
 
-    def path_update(self, value):
-        temp_point = value['point']
-        temp_timer = time.time()
-        if len(self.path) < WINDOW_SIZE:
-            self.path.append([temp_point, temp_timer])
-            self.midpoint = [(self.midpoint[0] + temp_point[0])/len(self.path),
-                             (self.midpoint[1] + temp_point[1])/len(self.path)]
-            self.timer = temp_timer
-        else:
-            if cos_similarity(temp_point, self.midpoint) < DISTANCE:
-                past_point, past_time = self.path.popleft()
-                self.midpoint = [(self.midpoint[0] + (temp_point[0]-past_point[0]))/len(
-                    self.path), (self.midpoint[1] + (temp_point[1]-past_point[1]))/len(self.path)]
-                self.path.append([temp_point, temp_timer])
-                self.point = temp_point
-                self.timer = temp_timer
-
     def update(self, value):
+        self.timer = time.time()
+        self.path_x.append(value['point'][0])
+        self.path_y.append(value['point'][1])
+        self.path_t.append(self.timer)
         self.color = value['color']
         self.gridbox = value['gridbox']
         self.detect = True
-        # 여기서 벡터 결정하는 함수를 사용해서, 벡터를 결정한다. 벡터의 결정을 원할때는 최소한 path의 길이가 어느 수준 이상이여야할 것.
-        if len(self.path) == WINDOW_SIZE:
-            temp_path = []
-            for i in range(WINDOW_SIZE):
-                temp = self.path.popleft()
-                temp_path.append(temp)
-                self.path.append(temp)
-
-            # 6개정도 단위로 잘라서 벡터 평균을 구해본다
-            NEXT_TIME = 10
-            m_v_x = 0
-            m_v_y = 0
-            cnt = 0
-            for i in range(WINDOW_SIZE):
-                for j in range(i+1, WINDOW_SIZE):
-                    v_x = temp_path[i][0][0] - temp_path[j][0][0]
-                    v_y = temp_path[i][0][1] - temp_path[j][0][1]
-                    v_t = temp_path[j][1] - temp_path[i][1]
-                    m_v_x = m_v_x + (v_x/v_t)
-                    m_v_y = m_v_y + (v_y/v_t)
-                    cnt = cnt + 1
-            self.vector = [round(m_v_x/cnt, 3), round(m_v_y/cnt, 3)]
-
-            self.crush_dir, self.crush_time = impact.impact(
-                self.point, self.vector)
-
-        # 충돌 시간도 바로 판단해 준다.
-
-    # 확장형 칼만 필터 예측 및 수정 부분
-    # def ekf_predict(self) :
-    # def ekf_correct(self) :
+        # 여기서는 선형화를 실시하면 좋을 것 같다.
+        times = []
+        ximes = []
+        yimes = []
+        data_x = []
+        data_y = []
+        for now_t in self.path_t:
+            times.append(now_t)
+        last_time = times[len(times)-1]
+        for now_x in self.path_x:
+            ximes.append(now_x)
+        for now_y in self.path_y:
+            yimes.append(now_y)
+        for i in range(len(times)):
+            data_x.append([times[i], ximes[i]])
+            data_y.append([times[i], yimes[i]])
+        data_x = np.array(data_x)
+        x_slope, x_zul = new_sol(data_x)
+        data_y = np.array(data_y)
+        y_slope, y_zul = new_sol(data_y)
+        x_point = last_time*x_slope + x_zul
+        y_point = last_time*y_slope + y_zul
+        self.point = [x_point, y_point]
+        self.vector = [x_slope, y_slope]
+        print(self.vector)
+        return
 
 
 def char_changer(map):
@@ -145,32 +168,31 @@ def track(exists, values, detect_list):
                 # 새로운 객체를 생성한다
                 exist_list.append(detect_object(
                     object_label, deq.popleft(), value_list[now]))
-                # 벡터 생성 최대한 멋지게
                 update_exist.append(len(exist_list)-1)
+
+                # 벡터 생성 최대한 멋지게
 
             elif now < LEN_NEW and now != -1:
                 # 존재하던 객체를 갱신한다
-                 # 벡터 생성 최대한 멋지게
-                # exist_list[past].path_update(value_list[now])
-                # exist_list[past].update(value_list[now])
+                    # 벡터 생성 최대한 멋지게
+                exist_list[past].update(value_list[now])
 
-                # 벡터 생성 최대한 간단하게
+                # # 벡터 생성 최대한 간단하게
 
-                temp_time = exist_list[past].timer - time.time()
-                exist_list[past].timer = time.time()
-                temp_x = exist_list[past].point[0]-value_list[now]['point'][0]
-                temp_y = exist_list[past].point[1]-value_list[now]['point'][1]
-                exist_list[past].vector = [
-                    round(temp_x/temp_time, 3), round(temp_y/temp_time, 3)]
-                exist_list[past].point = value_list[now]['point']
-                exist_list[past].gridbox = value_list[now]['gridbox']
+                # temp_time = exist_list[past].timer - time.time()
+                # exist_list[past].timer = time.time()
+                # temp_x = exist_list[past].point[0]-value_list[now]['point'][0]
+                # temp_y = exist_list[past].point[1]-value_list[now]['point'][1]
+                # exist_list[past].vector = [
+                #     round(temp_x/temp_time, 3), round(temp_y/temp_time, 3)]
+                # exist_list[past].point = value_list[now]['point']
+                # exist_list[past].gridbox = value_list[now]['gridbox']
+                # exist_list[past].detect = True
+
                 exist_list[past].crush_dir, exist_list[past].crush_time = impact.impact(
                     exist_list[past].point, exist_list[past].vector)
-                exist_list[past].detect = True
                 update_exist.append(past)
 
-                print(exist_list[past].vector)
-                print(round(exist_list[past].crush_time, 3))
                 # 벡터가 일정 기준 이상 모였을 경우 -> 벡터를 포함해서 판단한다.
 
         # 현재 검출되지 않은 객체의 경우 실존하지 않음은 알려줘야한다 (왜냐하면 그걸로 멈출순 없으니까)
@@ -197,23 +219,23 @@ def track(exists, values, detect_list):
                 min_crush_time = e.crush_time
                 c_dir = e.crush_dir
 
-        if exist_list:
-            t = datetime.datetime.now().time()
-            t = str(t)
-            f.write(t)
-            f.write('\n')
-        for e in exist_list:
-            pluse_wirte = 'number : ' + str(e.number)
-            f.write(pluse_wirte)
-            f.write('\n')
-            pluse_wirte = 'point : [' + str(round(e.point[0], 4)) + \
-                ',' + str(round(e.point[1], 4)) + ']'
-            f.write(pluse_wirte)
-            f.write('\n')
-            pluse_wirte = 'vector : [' + str(round(e.vector[0], 4)) + \
-                ',' + str(round(e.vector[1], 4)) + ']'
-            f.write(pluse_wirte)
-            f.write('\n')
+        # if exist_list:
+        #     t = datetime.datetime.now().time()
+        #     t = str(t)
+        #     f.write(t)
+        #     f.write('\n')
+        # for e in exist_list:
+        #     pluse_wirte = 'number : ' + str(e.number)
+        #     f.write(pluse_wirte)
+        #     f.write('\n')
+        #     pluse_wirte = 'point : [' + str(round(e.point[0], 4)) + \
+        #         ',' + str(round(e.point[1], 4)) + ']'
+        #     f.write(pluse_wirte)
+        #     f.write('\n')
+        #     pluse_wirte = 'vector : [' + str(round(e.vector[0], 4)) + \
+        #         ',' + str(round(e.vector[1], 4)) + ']'
+        #     f.write(pluse_wirte)
+        #     f.write('\n')
 
     # 전체 충돌을 가져오고, 가장 위험도가 높은 친구에 대해서 경고음이나 제동을 할 수 있도록 한다. (아님 그것을 리턴)
     return exists, c_dir, min_crush_time

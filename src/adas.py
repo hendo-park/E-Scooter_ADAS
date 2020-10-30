@@ -238,7 +238,6 @@ while True:
     # 추적 알고리즘 시행
     exists, dir, crush_time = track.track(exists, values, detect_list)
     # 여기는 그리드를 하기 보다는 충돌 시간에 맞춰서 제동 혹은 경고음을 올리는게 더 좋을것으로 생각됨. 그리드는 단순히 판단용
-    print(exists)
     # cv2로 그리드
     server_label = {}
     for object_label in detect_list:
